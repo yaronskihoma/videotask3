@@ -31,7 +31,7 @@
     #buttonContainer {
       margin: 20px 0;
     }
-    #popup, #cameraPermissionPopup {
+    #popup, #cameraPermissionPopup, #completionCodePopup {
       display: none;
       position: fixed;
       top: 50%;
@@ -41,6 +41,15 @@
       border: 2px solid #4CAF50;
       padding: 20px;
       z-index: 1000;
+      text-align: center;
+    }
+    #completionCode {
+      font-size: 24px;
+      font-weight: bold;
+      margin: 20px 0;
+      padding: 10px;
+      background-color: #f0f0f0;
+      border-radius: 5px;
     }
     #overlay {
       display: none;
@@ -51,6 +60,23 @@
       height: 100%;
       background: rgba(0,0,0,0.5);
       z-index: 999;
+    }
+    .copy-button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    .copy-button:hover {
+      background-color: #45a049;
+    }
+    .instruction {
+      margin-top: 15px;
+      color: #666;
+      font-size: 14px;
     }
   </style>
 </head>
@@ -76,6 +102,15 @@
     <p>This experience requires access to your camera to track your emotions while watching the video.</p>
     <p><a href="https://yaronskihoma.github.io/VideoTask2/privacypolicy.html" target="_blank">Read our Privacy Policy</a></p>
     <button id="allowCameraBtn">Allow Camera</button>
+  </div>
+
+  <!-- Completion Code Popup -->
+  <div id="completionCodePopup">
+    <h2>Thank you for participating!</h2>
+    <p>Your completion code is:</p>
+    <div id="completionCode"></div>
+    <button class="copy-button" onclick="copyToClipboard()">Copy Code</button>
+    <p class="instruction">Please copy this code and paste it in your Amazon MTurk task to complete the HIT.</p>
   </div>
 
   <!-- Scripts -->
@@ -119,45 +154,31 @@
     const overlay = document.getElementById('overlay');
     const cameraPermissionPopup = document.getElementById('cameraPermissionPopup');
     const allowCameraBtn = document.getElementById('allowCameraBtn');
+    const completionCodePopup = document.getElementById('completionCodePopup');
 
-    function getIpAndGeoInfo() {
-      fetch(`https://ipinfo.io/json?token=${config.IPINFO_TOKEN}`)
-        .then(response => response.json())
-        .then(data => {
-          const userGeoData = {
-            ip: data.ip,
-            city: data.city,
-            region: data.region,
-            country: data.country,
-            location: data.loc,
-            postal: data.postal
-          };
-          trackingData.push({ type: "GEO_INFO", geoData: userGeoData });
-        })
-        .catch(error => console.error('Error fetching IP info:', error));
+    window.copyToClipboard = function() {
+      const codeElement = document.getElementById('completionCode');
+      const text = codeElement.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const button = document.querySelector('.copy-button');
+        button.textContent = 'Copied!';
+        setTimeout(() => {
+          button.textContent = 'Copy Code';
+        }, 2000);
+      });
+    };
+
+    function showCompletionCode() {
+      const codeElement = document.getElementById('completionCode');
+      codeElement.textContent = config.COMPLETION_CODE;
+      overlay.style.display = 'block';
+      completionCodePopup.style.display = 'block';
     }
 
     window.addEventListener('load', () => {
-      getIpAndGeoInfo();
       overlay.style.display = 'block';
       cameraPermissionPopup.style.display = 'block';
     });
-
-    function getDeviceDetails() {
-      return {
-        browser: navigator.userAgent,
-        platform: navigator.platform,
-        date: new Intl.DateTimeFormat('en-GB', {
-          timeZone: 'Europe/Warsaw',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-        }).format(new Date())
-      };
-    }
 
     function requestCameraAccess() {
       navigator.mediaDevices.getUserMedia({ video: true })
@@ -175,8 +196,7 @@
 
     async function uploadToSupabase(data, filename) {
       try {
-        // Add size check
-        if (data.size > 5 * 1024 * 1024) { // 5MB limit
+        if (data.size > 5 * 1024 * 1024) {
           throw new Error('File too large');
         }
 
@@ -224,36 +244,30 @@
       document.body.appendChild(loadingOverlay);
 
       try {
-        const timestamp = Date.now();
+        const sessionId = Date.now();
         const workerId = getMTurkWorkerId();
         
         const metadata = {
-          deviceInfo: getDeviceDetails(),
-          timestamp: new Date().toISOString(),
-          totalFrames: trackingData.length,
+          sessionId: sessionId,
           workerId: workerId,
-          sessionId: timestamp
+          totalFrames: trackingData.length
         };
 
-        // Create files with worker ID
         const jsonBlob = new Blob([JSON.stringify(trackingData)], { type: 'application/json' });
         const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
 
-        // Upload with retry
         await Promise.all([
-          uploadWithRetry(jsonBlob, `${workerId}_data_${timestamp}.json`),
-          uploadWithRetry(metadataBlob, `${workerId}_metadata_${timestamp}.json`)
+          uploadWithRetry(jsonBlob, `${workerId}_data_${sessionId}.json`),
+          uploadWithRetry(metadataBlob, `${workerId}_metadata_${sessionId}.json`)
         ]);
 
-        message.innerHTML = `
-          Thank you for participating!<br>
-          Your completion code: ${timestamp}
-        `;
+        // Remove loading overlay and show completion code
+        document.body.removeChild(loadingOverlay);
+        showCompletionCode();
 
       } catch (error) {
         console.error('Upload error:', error);
         message.textContent = 'Error uploading data. Please try again or contact the researcher.';
-      } finally {
         setTimeout(() => {
           if (document.body.contains(loadingOverlay)) {
             document.body.removeChild(loadingOverlay);
@@ -275,7 +289,7 @@
         morphcastInstance = { start, stop };
       });
 
-    // Event Listeners
+    // Event Listeners for tracking data
     window.addEventListener(CY.modules().FACE_AROUSAL_VALENCE.eventName, (evt) => {
       trackingData.push({
         mediaTime: videoPlayer.currentTime,
