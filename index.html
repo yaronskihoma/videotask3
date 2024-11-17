@@ -247,27 +247,43 @@
         const sessionId = Date.now();
         const workerId = getMTurkWorkerId();
         
+        // Include taskId in metadata
         const metadata = {
           sessionId: sessionId,
           workerId: workerId,
+          taskId: config.TASK_ID,
           totalFrames: trackingData.length
         };
 
         const jsonBlob = new Blob([JSON.stringify(trackingData)], { type: 'application/json' });
         const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
 
+        // Modified filenames to include task ID
         await Promise.all([
-          uploadWithRetry(jsonBlob, `${workerId}_data_${sessionId}.json`),
-          uploadWithRetry(metadataBlob, `${workerId}_metadata_${sessionId}.json`)
+          uploadWithRetry(
+            jsonBlob, 
+            `${config.TASK_ID}_${workerId}_data_${sessionId}.json`
+          ),
+          uploadWithRetry(
+            metadataBlob, 
+            `${config.TASK_ID}_${workerId}_metadata_${sessionId}.json`
+          )
         ]);
 
-        // Remove loading overlay and show completion code
+        // Remove loading overlay
         document.body.removeChild(loadingOverlay);
+        
+        // Show completion code popup
         showCompletionCode();
 
       } catch (error) {
         console.error('Upload error:', error);
-        message.textContent = 'Error uploading data. Please try again or contact the researcher.';
+        message.innerHTML = `
+          Error uploading data.<br>
+          Please try again or contact the researcher.<br>
+          Error details: ${error.message}
+        `;
+        
         setTimeout(() => {
           if (document.body.contains(loadingOverlay)) {
             document.body.removeChild(loadingOverlay);
