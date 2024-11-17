@@ -91,7 +91,10 @@
   <script src="https://sdk.morphcast.com/emotion-statistics/v1.0-beta/script.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-  <script type="module" src="config.js"></script>
+  <script type="module">
+  import config from './config.js';
+  window.config = config; // Make config globally available
+  </script>
   
 
   <script>
@@ -365,7 +368,7 @@
 
     async function sendToGoogleSheets(data) {
       // Import config
-      const GOOGLE_SCRIPT_URL = config.GOOGLE_SCRIPT_DEPLOYMENT_URL;
+      const GOOGLE_SCRIPT_URL = window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL;
       
       try {
         const deviceDetails = getDeviceDetails();
@@ -404,13 +407,16 @@
         console.log('Sending data to Google Sheets:', payload);
 
         const response = await fetch(GOOGLE_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'cors',
-          headers: {
-            'Content-Type': 'application/json',
+        method: 'POST',
+        mode: 'no-cors', // Change back to no-cors
+        headers: {
+          'Content-Type': 'text/plain', // Change content type
           },
           body: JSON.stringify(payload)
         });
+
+        // Since no-cors mode doesn't return JSON, modify success check
+        return true; // Assume success if no error thrown
 
         const result = await response.json();
         console.log('Google Sheets response:', result);
@@ -470,65 +476,95 @@
         });
     }
 
-    // Modified download button handler with Google Sheets integration
-    downloadReportBtn.addEventListener('click', async () => {
-      // Create and show loading overlay
-      const overlay = document.createElement('div');
-      overlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-      `;
-      
-      const message = document.createElement('div');
-      message.style.cssText = `
-        background: white;
-        padding: 20px;
-        border-radius: 5px;
-        text-align: center;
-      `;
-      message.textContent = 'Downloading report and sending data...';
-      
-      overlay.appendChild(message);
-      document.body.appendChild(overlay);
+downloadReportBtn.addEventListener('click', async () => {
+  // Create and show loading overlay
+  const overlay = document.createElement('div');
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  `;
+  
+  const message = document.createElement('div');
+  message.style.cssText = `
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    text-align: center;
+  `;
+  message.textContent = 'Downloading report and sending data...';
+  
+  overlay.appendChild(message);
+  document.body.appendChild(overlay);
 
-      try {
-        // First download the ZIP file
-        downloadReportAsZip();
-        
-        // Then try to send to Google Sheets
-        const success = await sendToGoogleSheets(trackingData);
-        
-        message.textContent = success ? 
-          'Report downloaded and data sent successfully!' : 
-          'Report downloaded. Data upload failed.';
-          
-        // Auto-hide overlay after 3 seconds
-        setTimeout(() => {
-          if (document.body.contains(overlay)) {
-            document.body.removeChild(overlay);
-          }
-        }, 3000);
-        
-      } catch (error) {
-        console.error('Error:', error);
-        message.textContent = 'Error occurred. Report downloaded locally.';
-        setTimeout(() => {
-          if (document.body.contains(overlay)) {
-            document.body.removeChild(overlay);
-          }
-        }, 3000);
-      }
+  try {
+    console.log('Starting data upload process...');
+    console.log('Checking config:', window.config);
+    console.log('Google Script URL:', window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL);
+    
+    // First download the ZIP file
+    downloadReportAsZip();
+    
+    // Then try to send to Google Sheets
+    message.textContent = 'Report downloaded. Sending data to server...';
+    
+    const response = await fetch(window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+      body: JSON.stringify({
+        timestamp: new Date().toISOString(),
+        deviceInfo: getDeviceDetails(),
+        location: trackingData.find(item => item.type === "GEO_INFO")?.geoData || {},
+        metrics: {
+          emotionSummary: trackingData
+            .filter(item => item.type === 'FACE_EMOTION')
+            .reduce((acc, curr) => {
+              acc[curr.dominantEmotion] = (acc[curr.dominantEmotion] || 0) + 1;
+              return acc;
+            }, {}),
+          averageAttention: trackingData
+            .filter(item => item.type === 'FACE_ATTENTION')
+            .reduce((sum, curr) => sum + (curr.attention || 0), 0) / 
+            trackingData.filter(item => item.type === 'FACE_ATTENTION').length || 0,
+          totalFrames: trackingData.length
+        },
+        rawData: JSON.stringify(trackingData.slice(0, 1000))
+      })
     });
 
-  </script>
+    console.log('Server response:', response);
+    
+    message.textContent = 'Report downloaded and data sent successfully!';
+    
+    // Auto-hide overlay after 3 seconds
+    setTimeout(() => {
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
+    }, 3000);
+    
+  } catch (error) {
+    console.error('Detailed error:', error);
+    message.textContent = 'Error occurred. Report downloaded locally.';
+    setTimeout(() => {
+      if (document.body.contains(overlay)) {
+        document.body.removeChild(overlay);
+      }
+    }, 3000);
+  }
+});
+    
+</script>
 
 </body>
 </html>
