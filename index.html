@@ -326,28 +326,37 @@
         console.log('Sending data...', payload);
 
         const response = await fetch(window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload)
-        });
+    method: 'POST',
+    mode: 'cors', // Change this from default to cors
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload)
+  });
 
-        const result = await response.json();
-        console.log('Server response:', result);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
 
-        if (result.status === 'success') {
-          message.textContent = 'Thank you for participating!';
-          // Optional: Add redirect to survey
-          // setTimeout(() => window.location.href = 'YOUR_SURVEY_URL', 3000);
-        } else {
-          throw new Error(result.message || 'Upload failed');
-        }
+  const contentType = response.headers.get("content-type");
+  if (!contentType || !contentType.includes("application/json")) {
+    throw new Error("Received non-JSON response from server");
+  }
 
-      } catch (error) {
-        console.error('Error during data sending:', error);
-        message.textContent = 'Error saving responses. Please contact the researcher.';
-      }
+  const result = await response.json();
+  console.log('Server response:', result);
+
+  if (result.status === 'success') {
+    message.textContent = 'Thank you for participating!';
+    // Optional: redirect to survey
+    // setTimeout(() => window.location.href = 'YOUR_SURVEY_URL', 3000);
+  } else {
+    throw new Error(result.message || 'Upload failed');
+  }
+} catch (error) {
+  console.error('Error during data sending:', error);
+  message.textContent = 'Error saving responses. Please contact the researcher.';
+}
 
       // Hide overlay after 3 seconds
       setTimeout(() => {
