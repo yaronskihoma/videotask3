@@ -84,13 +84,33 @@
   <script src="https://ai-sdk.morphcast.com/v1.16/ai-sdk.js"></script>
   <script src="https://sdk.morphcast.com/emotion-statistics/v1.0-beta/script.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-  <script>
-    // Initialize Supabase Client
+  <script type="module">
+    import config from './config.js';
+    
+    // Initialize Supabase Client using config
     const { createClient } = supabase;
     const supabaseClient = createClient(
-      'https://szshayacurojnsbdcwkc.supabase.co',
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6c2hheWFjdXJvam5zYmRjd2tjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMTg1ODQ1NiwiZXhwIjoyMDQ3NDM0NDU2fQ.KSZl65HK89532Q-nsJHqKPZ8AFrhu6R80b4wHOFjTAk'
+      config.SUPABASE_URL,
+      config.SUPABASE_KEY
     );
+
+    // Helper function for retrying uploads
+    async function uploadWithRetry(data, filename, maxRetries = 3) {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await uploadToSupabase(data, filename);
+        } catch (error) {
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
+    }
+
+    // Get MTurk worker ID from URL parameters
+    function getMTurkWorkerId() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('workerId') || 'unknown_worker';
+    }
 
     let trackingData = [];
     let morphcastInstance = null;
@@ -101,7 +121,7 @@
     const allowCameraBtn = document.getElementById('allowCameraBtn');
 
     function getIpAndGeoInfo() {
-      fetch('https://ipinfo.io/json?token=6ef0f26335447e')
+      fetch(`https://ipinfo.io/json?token=${config.IPINFO_TOKEN}`)
         .then(response => response.json())
         .then(data => {
           const userGeoData = {
@@ -155,11 +175,17 @@
 
     async function uploadToSupabase(data, filename) {
       try {
+        // Add size check
+        if (data.size > 5 * 1024 * 1024) { // 5MB limit
+          throw new Error('File too large');
+        }
+
         const { data: uploadData, error } = await supabaseClient.storage
           .from('AROSUALDATA')
           .upload(filename, data, {
             cacheControl: '3600',
-            upsert: false
+            contentType: data instanceof Blob ? data.type : 'application/json',
+            upsert: true
           });
 
         if (error) throw error;
@@ -199,26 +225,34 @@
 
       try {
         const timestamp = Date.now();
+        const workerId = getMTurkWorkerId();
+        
         const metadata = {
           deviceInfo: getDeviceDetails(),
           timestamp: new Date().toISOString(),
-          totalFrames: trackingData.length
+          totalFrames: trackingData.length,
+          workerId: workerId,
+          sessionId: timestamp
         };
 
-        // Create files
+        // Create files with worker ID
         const jsonBlob = new Blob([JSON.stringify(trackingData)], { type: 'application/json' });
         const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
 
-        // Upload files
+        // Upload with retry
         await Promise.all([
-          uploadToSupabase(jsonBlob, `data_${timestamp}.json`),
-          uploadToSupabase(metadataBlob, `metadata_${timestamp}.json`)
+          uploadWithRetry(jsonBlob, `${workerId}_data_${timestamp}.json`),
+          uploadWithRetry(metadataBlob, `${workerId}_metadata_${timestamp}.json`)
         ]);
 
-        message.textContent = 'Data uploaded successfully!';
+        message.innerHTML = `
+          Thank you for participating!<br>
+          Your completion code: ${timestamp}
+        `;
+
       } catch (error) {
         console.error('Upload error:', error);
-        message.textContent = 'Error uploading data. Please try again.';
+        message.textContent = 'Error uploading data. Please try again or contact the researcher.';
       } finally {
         setTimeout(() => {
           if (document.body.contains(loadingOverlay)) {
@@ -229,7 +263,7 @@
     }
 
     CY.loader()
-      .licenseKey("sk9bebf5467e79a53a382ee56f1293c7e03b406b94f0af")
+      .licenseKey(config.MORPHCAST_LICENSE)
       .addModule(CY.modules().FACE_AROUSAL_VALENCE.name, { smoothness: 0.70 })
       .addModule(CY.modules().FACE_EMOTION.name, { smoothness: 0.40 })
       .addModule(CY.modules().FACE_ATTENTION.name, { smoothness: 0.83 })
@@ -241,7 +275,7 @@
         morphcastInstance = { start, stop };
       });
 
-    // Event Listeners for tracking data
+    // Event Listeners
     window.addEventListener(CY.modules().FACE_AROUSAL_VALENCE.eventName, (evt) => {
       trackingData.push({
         mediaTime: videoPlayer.currentTime,
