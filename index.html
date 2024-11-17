@@ -55,7 +55,6 @@
   </style>
 </head>
 <body>
-
   <h1>User Experience Tracking</h1>
 
   <div id="buttonContainer">
@@ -71,13 +70,6 @@
 
   <div id="overlay"></div>
 
-  <!-- Popup for emotion tracking completed -->
-  <div id="popup">
-    <h2>User experience tracking is finished!</h2>
-    <h2>Please download & send .zip archive to finish</h2>
-    <button id="downloadReportBtn">Step 3: Send Report</button>
-  </div>
-
   <!-- Popup for Camera Permission -->
   <div id="cameraPermissionPopup">
     <h2>Step 1: Allow Camera Access</h2>
@@ -89,22 +81,16 @@
   <script src="https://sdk.morphcast.com/mphtools/v1.1/mphtools.js" data-config="cameraPrivacyPopup, compatibilityUI, compatibilityAutoCheck"></script>
   <script src="https://ai-sdk.morphcast.com/v1.16/ai-sdk.js"></script>
   <script src="https://sdk.morphcast.com/emotion-statistics/v1.0-beta/script.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
   <script type="module">
-  import config from './config.js';
-  window.config = config; // Make config globally available
+    import config from './config.js';
+    window.config = config;
   </script>
-  
-
   <script>
     let trackingData = [];
     let morphcastInstance = null;
     const watchBtn = document.getElementById('watchBtn');
     const videoPlayer = document.getElementById('videoPlayer');
-    const popup = document.getElementById('popup');
     const overlay = document.getElementById('overlay');
-    const downloadReportBtn = document.getElementById('downloadReportBtn');
     const cameraPermissionPopup = document.getElementById('cameraPermissionPopup');
     const allowCameraBtn = document.getElementById('allowCameraBtn');
 
@@ -117,38 +103,31 @@
 
     const statisticsUploader = new MorphCastStatistics.StatisticsUploader(statsConfig);
 
-    // Function to get IP and geolocation data
-  function getIpAndGeoInfo() {
-    fetch('https://ipinfo.io/json?token=6ef0f26335447e') // Replace with your token from ipinfo.io
-      .then(response => response.json())
-      .then(data => {
-        console.log("IP Data:", data);
-        // Store the fetched data
-        const userGeoData = {
-          ip: data.ip,
-          city: data.city,
-          region: data.region,
-          country: data.country,
-          location: data.loc, // Latitude and Longitude
-          postal: data.postal
-        };
+    function getIpAndGeoInfo() {
+      fetch('https://ipinfo.io/json?token=6ef0f26335447e')
+        .then(response => response.json())
+        .then(data => {
+          const userGeoData = {
+            ip: data.ip,
+            city: data.city,
+            region: data.region,
+            country: data.country,
+            location: data.loc,
+            postal: data.postal
+          };
+          trackingData.push({ type: "GEO_INFO", geoData: userGeoData });
+        })
+        .catch(error => console.error('Error fetching IP info:', error));
+    }
 
-        // Add the IP/Geo info to tracking data
-        trackingData.push({ type: "GEO_INFO", geoData: userGeoData });
-        console.log("User GeoData added to trackingData:", trackingData);
-      })
-      .catch(error => console.error('Error fetching IP info:', error));
-  }
+    window.addEventListener('load', () => {
+      getIpAndGeoInfo();
+      overlay.style.display = 'block';
+      cameraPermissionPopup.style.display = 'block';
+    });
 
-  // Call the function to get geo info when the page loads
-  window.addEventListener('load', () => {
-    getIpAndGeoInfo();
-  });
-
-
-    // Get device and browser details
     function getDeviceDetails() {
-      const deviceDetails = {
+      return {
         browser: navigator.userAgent,
         platform: navigator.platform,
         date: new Intl.DateTimeFormat('en-GB', {
@@ -161,10 +140,8 @@
           second: '2-digit',
         }).format(new Date())
       };
-      return deviceDetails;
     }
 
-    // Camera permission logic
     function requestCameraAccess() {
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(() => {
@@ -177,15 +154,7 @@
         });
     }
 
-    // Show camera permission popup on page load
-    window.addEventListener('load', () => {
-      overlay.style.display = 'block';
-      cameraPermissionPopup.style.display = 'block';
-    });
-
-    allowCameraBtn.addEventListener('click', () => {
-      requestCameraAccess();
-    });
+    allowCameraBtn.addEventListener('click', requestCameraAccess);
 
     CY.loader()
       .licenseKey("sk9bebf5467e79a53a382ee56f1293c7e03b406b94f0af")
@@ -200,68 +169,34 @@
         morphcastInstance = { start, stop };
       });
 
-    // Step 2: Watch Video
     watchBtn.addEventListener('click', async () => {
-      videoPlayer.style.display = 'block'; // Show the video
+      videoPlayer.style.display = 'block';
       if (morphcastInstance) {
         await morphcastInstance.start();
         await statisticsUploader.start();
       }
 
-      // Open video in full-screen mode
       if (videoPlayer.requestFullscreen) {
         videoPlayer.requestFullscreen();
       } else if (videoPlayer.mozRequestFullScreen) {
-        videoPlayer.mozRequestFullScreen(); // Firefox
+        videoPlayer.mozRequestFullScreen();
       } else if (videoPlayer.webkitRequestFullscreen) {
-        videoPlayer.webkitRequestFullscreen(); // Chrome, Safari, and Opera
+        videoPlayer.webkitRequestFullscreen();
       } else if (videoPlayer.msRequestFullscreen) {
-        videoPlayer.msRequestFullscreen(); // IE/Edge
+        videoPlayer.msRequestFullscreen();
       }
 
-      window.onbeforeunload = function() {
-        return "Video is playing, please don't close the window.";
-      };
       document.addEventListener("fullscreenchange", preventExit, false);
       document.addEventListener("mozfullscreenchange", preventExit, false);
       document.addEventListener("webkitfullscreenchange", preventExit, false);
       document.addEventListener("msfullscreenchange", preventExit, false);
 
       videoPlayer.play();
-
-      videoPlayer.onended = async () => {
-        if (morphcastInstance) {
-          await statisticsUploader.stop();
-          await morphcastInstance.stop();
-        }
-
-        window.onbeforeunload = null; // Allow page exit after video ends
-        removeExitPrevention();
-
-        // Exit full screen after video ends
-        exitFullscreen();
-
-        // Show the download report popup
-        overlay.style.display = 'block';
-        popup.style.display = 'block';
-      };
     });
-
-    function exitFullscreen() {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.mozCancelFullScreen) { // Firefox
-        document.mozCancelFullScreen();
-      } else if (document.webkitExitFullscreen) { // Chrome, Safari and Opera
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) { // IE/Edge
-        document.msExitFullscreen();
-      }
-    }
 
     function preventExit() {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen(); // Re-enter fullscreen if exited
+        document.documentElement.requestFullscreen();
       }
     }
 
@@ -272,132 +207,80 @@
       document.removeEventListener("msfullscreenchange", preventExit);
     }
 
-    
-    // Collect data from all relevant MorphCast events
-
-    // FACE_AROUSAL_VALENCE
+    // Event listeners for tracking data
     window.addEventListener(CY.modules().FACE_AROUSAL_VALENCE.eventName, (evt) => {
-      let frameData = {
+      trackingData.push({
         mediaTime: videoPlayer.currentTime,
         type: 'FACE_AROUSAL_VALENCE',
         valence: evt.detail.output.valence,
         arousal: evt.detail.output.arousal
-      };
-      trackingData.push(frameData);
-      console.log(frameData);
+      });
     });
 
-    // FACE_EMOTION
     window.addEventListener(CY.modules().FACE_EMOTION.eventName, (evt) => {
-      let frameData = {
+      trackingData.push({
         mediaTime: videoPlayer.currentTime,
         type: 'FACE_EMOTION',
         dominantEmotion: evt.detail.output.dominantEmotion,
         emotions: evt.detail.output.emotion
-      };
-      trackingData.push(frameData);
-      console.log(frameData);
+      });
     });
 
-    // FACE_ATTENTION
     window.addEventListener(CY.modules().FACE_ATTENTION.eventName, (evt) => {
-      let frameData = {
+      trackingData.push({
         mediaTime: videoPlayer.currentTime,
         type: 'FACE_ATTENTION',
         attention: evt.detail.output.attention
-      };
-      trackingData.push(frameData);
-      console.log(frameData);
+      });
     });
 
-    // FACE_DETECTOR
     window.addEventListener(CY.modules().FACE_DETECTOR.eventName, (evt) => {
-      let frameData = {
+      trackingData.push({
         mediaTime: videoPlayer.currentTime,
         type: 'FACE_DETECTOR',
         totalFaces: evt.detail.totalFaces,
         status: evt.detail.status
-      };
-      trackingData.push(frameData);
-      console.log(frameData);
+      });
     });
 
-    // ALARM_NO_FACE
     window.addEventListener(CY.modules().ALARM_NO_FACE.eventName, (evt) => {
-      let frameData = {
+      trackingData.push({
         mediaTime: videoPlayer.currentTime,
         type: 'ALARM_NO_FACE',
         alarmTriggered: true
-      };
-      trackingData.push(frameData);
-      console.log(frameData);
+      });
     });
 
-    // DATA_AGGREGATOR
     window.addEventListener(CY.modules().DATA_AGGREGATOR.eventName, (evt) => {
-      let frameData = {
+      trackingData.push({
         mediaTime: videoPlayer.currentTime,
         type: 'DATA_AGGREGATOR',
         aggregatedData: evt.detail.output
-      };
-      trackingData.push(frameData);
-      console.log(frameData);
+      });
     });
 
+    videoPlayer.onended = async () => {
+      if (morphcastInstance) {
+        await statisticsUploader.stop();
+        await morphcastInstance.stop();
+      }
 
-    // Convert collected data to CSV
-    function convertToCSV(data) {
-      const headers = ['mediaTime', 'type', 'attention', 'dominantEmotion', 'arousal', 'valence', 'emotions', 'totalFaces', 'status', 'alarmTriggered', 'aggregatedData'];
-      const csvRows = [headers.join(',')];
+      removeExitPrevention();
 
-      data.forEach(row => {
-        csvRows.push([
-          row.mediaTime, row.type, row.attention || '', row.dominantEmotion || '', row.arousal || '', row.valence || '',
-          JSON.stringify(row.emotions || ''), row.totalFaces || '', row.status || '', row.alarmTriggered || '', JSON.stringify(row.aggregatedData || '')
-        ].join(','));
-      });
+      // Exit fullscreen
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.mozCancelFullScreen) {
+        document.mozCancelFullScreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
+      }
 
-      // Append device and browser details
-      const deviceDetails = getDeviceDetails();
-      csvRows.push(`\nDevice Information:\nBrowser: ${deviceDetails.browser}`);
-      csvRows.push(`Platform: ${deviceDetails.platform}`);
-      csvRows.push(`Date (Warsaw Time): ${deviceDetails.date}`);
-      
-      return csvRows.join('\n');
-    }
-
-    function sendToGoogleSheets(data) {
-      return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        const callbackName = 'jsonpCallback_' + Date.now();
-        
-        // Create global callback
-        window[callbackName] = function(response) {
-          delete window[callbackName];
-          document.body.removeChild(script);
-          if (response.status === 'success') {
-            resolve(response);
-          } else {
-            reject(new Error(response.message));
-          }
-        };
-        
-        // Prepare the URL with data
-        const params = new URLSearchParams({
-          callback: callbackName,
-          data: JSON.stringify(data)
-        });
-        
-        script.src = `${window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL}?${params}`;
-        script.onerror = () => reject(new Error('Script load error'));
-        document.body.appendChild(script);
-      });
-    }
-
-    // Modify the download button event listener
-    downloadReportBtn.addEventListener('click', async () => {
-      const overlay = document.createElement('div');
-      overlay.style.cssText = `
+      // Show loading overlay
+      const loadingOverlay = document.createElement('div');
+      loadingOverlay.style.cssText = `
         position: fixed;
         top: 0;
         left: 0;
@@ -417,85 +300,39 @@
         border-radius: 5px;
         text-align: center;
       `;
-      message.textContent = 'Preparing and sending data...';
+      message.textContent = 'Saving your responses...';
       
-      overlay.appendChild(message);
-      document.body.appendChild(overlay);
+      loadingOverlay.appendChild(message);
+      document.body.appendChild(loadingOverlay);
 
       try {
-        // Prepare the data payload
-        const deviceDetails = getDeviceDetails();
-        const geoData = trackingData.find(item => item.type === "GEO_INFO")?.geoData || {};
+        const response = await fetch(window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: {
+            'Content-Type': 'text/plain',
+          },
+          body: JSON.stringify({
+            trackingData,
+            deviceDetails: getDeviceDetails()
+          })
+        });
+
+        message.textContent = 'Thank you for participating!';
         
-        // Prepare emotion summary
-        const emotionData = trackingData.filter(item => item.type === 'FACE_EMOTION');
-        const emotionCounts = emotionData.reduce((acc, curr) => {
-          acc[curr.dominantEmotion] = (acc[curr.dominantEmotion] || 0) + 1;
-          return acc;
-        }, {});
-
-        // Calculate average attention
-        const attentionData = trackingData.filter(item => item.type === 'FACE_ATTENTION');
-        const avgAttention = attentionData.length > 0 
-          ? attentionData.reduce((sum, curr) => sum + (curr.attention || 0), 0) / attentionData.length 
-          : 0;
-
-        const payload = {
-          deviceInfo: {
-            browser: deviceDetails.browser,
-            platform: deviceDetails.platform,
-            date: deviceDetails.date
-          },
-          location: {
-            country: geoData.country || 'N/A',
-            city: geoData.city || 'N/A'
-          },
-          metrics: {
-            emotionSummary: emotionCounts,
-            averageAttention: avgAttention,
-            totalFrames: trackingData.length
-          },
-          rawData: JSON.stringify(trackingData.slice(0, 100)) // Limiting data size
-        };
-
-        console.log('Sending data to Google Sheets:', payload);
-        message.textContent = 'Sending data to server...';
-
-        const result = await sendToGoogleSheets(payload);
-        console.log('Server response:', result);
-
-        if (result.status === 'success') {
-          message.textContent = 'Data sent successfully!';
-          
-          // Disable the button
-          downloadReportBtn.disabled = true;
-          downloadReportBtn.style.opacity = '0.5';
-          downloadReportBtn.textContent = 'Report Sent ✓';
-          
-          // Auto-hide overlay after success
-          setTimeout(() => {
-            if (document.body.contains(overlay)) {
-              document.body.removeChild(overlay);
-            }
-          }, 3000);
-        } else {
-          throw new Error(result.message || 'Upload failed');
-        }
+        // Optional: Redirect to survey after delay
+        setTimeout(() => {
+          // window.location.href = 'YOUR_SURVEY_URL';
+          if (document.body.contains(loadingOverlay)) {
+            document.body.removeChild(loadingOverlay);
+          }
+        }, 3000);
 
       } catch (error) {
-        console.error('Error during data sending:', error);
-        message.textContent = 'Error sending data. Please try again.';
-        
-        // Keep overlay visible for errors
-        setTimeout(() => {
-          if (document.body.contains(overlay)) {
-            document.body.removeChild(overlay);
-          }
-        }, 5000);
+        console.error('Error:', error);
+        message.textContent = 'Error saving responses. Please contact the researcher.';
       }
-    });
-    
-</script>
-
+    };
+  </script>
 </body>
 </html>
