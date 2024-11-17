@@ -260,73 +260,102 @@
     });
 
     videoPlayer.onended = async () => {
-      if (morphcastInstance) {
-        await statisticsUploader.stop();
-        await morphcastInstance.stop();
+  if (morphcastInstance) {
+    await statisticsUploader.stop();
+    await morphcastInstance.stop();
+  }
+
+  removeExitPrevention();
+  if (document.exitFullscreen) {
+    document.exitFullscreen();
+  }
+
+  // Show loading overlay
+  const loadingOverlay = document.createElement('div');
+  loadingOverlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  `;
+  
+  const message = document.createElement('div');
+  message.style.cssText = `
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    text-align: center;
+  `;
+  message.textContent = 'Saving your responses...';
+  
+  loadingOverlay.appendChild(message);
+  document.body.appendChild(loadingOverlay);
+
+  try {
+    // Prepare the data
+    const emotionData = trackingData.filter(item => item.type === 'FACE_EMOTION');
+    const emotionCounts = emotionData.reduce((acc, curr) => {
+      acc[curr.dominantEmotion] = (acc[curr.dominantEmotion] || 0) + 1;
+      return acc;
+    }, {});
+
+    const attentionData = trackingData.filter(item => item.type === 'FACE_ATTENTION');
+    const avgAttention = attentionData.reduce((sum, curr) => sum + (curr.attention || 0), 0) / attentionData.length;
+
+    const geoData = trackingData.find(item => item.type === "GEO_INFO")?.geoData || {};
+
+    const payload = {
+      deviceInfo: getDeviceDetails(),
+      location: {
+        country: geoData.country || 'N/A',
+        city: geoData.city || 'N/A'
+      },
+      metrics: {
+        emotionSummary: emotionCounts,
+        averageAttention: avgAttention,
+        totalFrames: trackingData.length
       }
+    };
 
-      removeExitPrevention();
+    console.log('Sending data...', payload);
 
-      // Exit fullscreen
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.mozCancelFullScreen) {
-        document.mozCancelFullScreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      } else if (document.msExitFullscreen) {
-        document.msExitFullscreen();
-      }
+    const response = await fetch(window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
 
-      // Show loading overlay
-      const loadingOverlay = document.createElement('div');
-      loadingOverlay.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0,0,0,0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 9999;
-      `;
-      
-      const message = document.createElement('div');
-      message.style.cssText = `
-        background: white;
-        padding: 20px;
-        border-radius: 5px;
-        text-align: center;
-      `;
-      message.textContent = 'Saving your responses...';
-      
-      loadingOverlay.appendChild(message);
-      document.body.appendChild(loadingOverlay);
+    const result = await response.json();
+    console.log('Server response:', result);
 
-      try {
-        const response = await fetch(window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: {
-            'Content-Type': 'text/plain',
-          },
-          body: JSON.stringify({
-            trackingData,
-            deviceDetails: getDeviceDetails()
-          })
-        });
+    if (result.status === 'success') {
+      message.textContent = 'Thank you for participating!';
+      // Optional: Add redirect to survey
+      // setTimeout(() => window.location.href = 'YOUR_SURVEY_URL', 3000);
+    } else {
+      throw new Error(result.message || 'Upload failed');
+    }
 
-        message.textContent = 'Thank you for participating!';
-        
-        // Optional: Redirect to survey after delay
-        setTimeout(() => {
-          // window.location.href = 'YOUR_SURVEY_URL';
-          if (document.body.contains(loadingOverlay)) {
-            document.body.removeChild(loadingOverlay);
-          }
-        }, 3000);
+  } catch (error) {
+    console.error('Error during data sending:', error);
+    message.textContent = 'Error saving responses. Please contact the researcher.';
+  }
+
+  // Hide overlay after 3 seconds
+  setTimeout(() => {
+    if (document.body.contains(loadingOverlay)) {
+      document.body.removeChild(loadingOverlay);
+    }
+  }, 3000);
+};
 
       } catch (error) {
         console.error('Error:', error);
