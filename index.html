@@ -105,7 +105,7 @@
       try {
         const fileName = `report_${Date.now()}.zip`;
         const { data, error } = await supabase.storage
-          .from('reports') // Supabase Storage bucket name
+          .from('AROSUALDATA') // Supabase Storage bucket name
           .upload(fileName, zipBlob, {
             contentType: 'application/zip',
           });
