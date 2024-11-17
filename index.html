@@ -55,7 +55,6 @@
   </style>
 </head>
 <body>
-
   <h1>User Experience Tracking</h1>
 
   <div id="buttonContainer">
@@ -79,100 +78,64 @@
     <button id="allowCameraBtn">Allow Camera</button>
   </div>
 
-  <!-- Supabase Library -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://sdk.morphcast.com/mphtools/v1.1/mphtools.js" data-config="cameraPrivacyPopup, compatibilityUI, compatibilityAutoCheck"></script>
   <script src="https://ai-sdk.morphcast.com/v1.16/ai-sdk.js"></script>
   <script src="https://sdk.morphcast.com/emotion-statistics/v1.0-beta/script.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-
   <script>
     // Initialize Supabase Client
-    const supabase = supabase.createClient(
-      'https://szshayacurojnsbdcwkc.supabase.co', // Replace with your Supabase URL
-      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6c2hheWFjdXJvam5zYmRjd2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE4NTg0NTYsImV4cCI6MjA0NzQzNDQ1Nn0.02eSqWEjA3VKA6sBGtnjq44ljQ-DSUsanh8EZWfFrcE' // Replace with your Supabase Anon Key
+    const { createClient } = supabase;
+    const supabaseClient = createClient(
+      'https://szshayacurojnsbdcwkc.supabase.co',
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6c2hheWFjdXJvam5zYmRjd2tjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzE4NTg0NTYsImV4cCI6MjA0NzQzNDQ1Nn0.02eSqWEjA3VKA6sBGtnjq44ljQ-DSUsanh8EZWfFrcE'
     );
 
     let trackingData = [];
     let morphcastInstance = null;
     const watchBtn = document.getElementById('watchBtn');
     const videoPlayer = document.getElementById('videoPlayer');
+    const overlay = document.getElementById('overlay');
     const cameraPermissionPopup = document.getElementById('cameraPermissionPopup');
     const allowCameraBtn = document.getElementById('allowCameraBtn');
 
-    // Function to upload reports to Supabase
-    async function uploadReportToSupabase(zipBlob) {
-      try {
-        const fileName = `report_${Date.now()}.zip`;
-        const { data, error } = await supabase.storage
-          .from('AROSUALDATA') // Supabase Storage bucket name
-          .upload(fileName, zipBlob, {
-            contentType: 'application/zip',
-          });
-
-        if (error) {
-          console.error('Upload failed:', error.message);
-          alert('Failed to upload the report. Please try again.');
-        } else {
-          console.log('File uploaded successfully:', data);
-          alert('Report uploaded successfully!');
-        }
-      } catch (err) {
-        console.error('Unexpected error:', err);
-        alert('An unexpected error occurred while uploading the report.');
-      }
+    function getIpAndGeoInfo() {
+      fetch('https://ipinfo.io/json?token=6ef0f26335447e')
+        .then(response => response.json())
+        .then(data => {
+          const userGeoData = {
+            ip: data.ip,
+            city: data.city,
+            region: data.region,
+            country: data.country,
+            location: data.loc,
+            postal: data.postal
+          };
+          trackingData.push({ type: "GEO_INFO", geoData: userGeoData });
+        })
+        .catch(error => console.error('Error fetching IP info:', error));
     }
 
-    // Function to generate and upload ZIP report
-    async function generateAndUploadZipReport() {
-      const zip = new JSZip();
-
-      // Convert tracking data to JSON and CSV
-      const deviceDetails = getDeviceDetails();
-      const jsonData = JSON.stringify({ trackingData, deviceDetails }, null, 2);
-      const csvData = convertToCSV(trackingData);
-
-      // Add JSON and CSV to ZIP
-      zip.file(`report_${Date.now()}.json`, jsonData);
-      zip.file(`report_${Date.now()}.csv`, csvData);
-
-      // Generate ZIP blob
-      const zipBlob = await zip.generateAsync({ type: 'blob' });
-
-      // Upload ZIP to Supabase
-      await uploadReportToSupabase(zipBlob);
-    }
-
-    // Event listener for video end
-    videoPlayer.onended = async () => {
-      if (morphcastInstance) {
-        await morphcastInstance.stop();
-      }
-
-      // Generate and upload the ZIP report
-      await generateAndUploadZipReport();
-    };
-
-    // Utility Functions
-    function convertToCSV(data) {
-      const headers = ['mediaTime', 'type', 'attention', 'dominantEmotion', 'arousal', 'valence', 'emotions', 'totalFaces', 'status', 'alarmTriggered', 'aggregatedData'];
-      const csvRows = [headers.join(',')];
-
-      data.forEach(row => {
-        csvRows.push([
-          row.mediaTime, row.type, row.attention || '', row.dominantEmotion || '', row.arousal || '', row.valence || '',
-          JSON.stringify(row.emotions || ''), row.totalFaces || '', row.status || '', row.alarmTriggered || '', JSON.stringify(row.aggregatedData || '')
-        ].join(','));
-      });
-
-      return csvRows.join('\n');
-    }
+    window.addEventListener('load', () => {
+      getIpAndGeoInfo();
+      overlay.style.display = 'block';
+      cameraPermissionPopup.style.display = 'block';
+    });
 
     function getDeviceDetails() {
       return {
         browser: navigator.userAgent,
         platform: navigator.platform,
-        date: new Date().toISOString(),
+        date: new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Warsaw',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }).format(new Date())
       };
     }
 
@@ -180,22 +143,164 @@
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(() => {
           cameraPermissionPopup.style.display = 'none';
+          overlay.style.display = 'none';
           watchBtn.style.display = 'inline-block';
         })
         .catch(() => {
-          alert('Camera access denied.');
+          alert('Camera access denied. You cannot proceed without allowing camera access.');
         });
     }
 
     allowCameraBtn.addEventListener('click', requestCameraAccess);
 
+    async function uploadToSupabase(data, filename) {
+      try {
+        const { data: uploadData, error } = await supabaseClient.storage
+          .from('AROSUALDATA')
+          .upload(filename, data, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (error) throw error;
+        return uploadData;
+      } catch (error) {
+        console.error('Supabase upload error:', error);
+        throw error;
+      }
+    }
+
+    async function generateAndUploadData() {
+      const loadingOverlay = document.createElement('div');
+      loadingOverlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+      `;
+      
+      const message = document.createElement('div');
+      message.style.cssText = `
+        background: white;
+        padding: 20px;
+        border-radius: 5px;
+        text-align: center;
+      `;
+      message.textContent = 'Uploading data...';
+      
+      loadingOverlay.appendChild(message);
+      document.body.appendChild(loadingOverlay);
+
+      try {
+        const timestamp = Date.now();
+        const metadata = {
+          deviceInfo: getDeviceDetails(),
+          timestamp: new Date().toISOString(),
+          totalFrames: trackingData.length
+        };
+
+        // Create files
+        const jsonBlob = new Blob([JSON.stringify(trackingData)], { type: 'application/json' });
+        const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
+
+        // Upload files
+        await Promise.all([
+          uploadToSupabase(jsonBlob, `data_${timestamp}.json`),
+          uploadToSupabase(metadataBlob, `metadata_${timestamp}.json`)
+        ]);
+
+        message.textContent = 'Data uploaded successfully!';
+      } catch (error) {
+        console.error('Upload error:', error);
+        message.textContent = 'Error uploading data. Please try again.';
+      } finally {
+        setTimeout(() => {
+          if (document.body.contains(loadingOverlay)) {
+            document.body.removeChild(loadingOverlay);
+          }
+        }, 3000);
+      }
+    }
+
     CY.loader()
-      .licenseKey("your-license-key")
-      .addModule(CY.modules().FACE_AROUSAL_VALENCE.name)
+      .licenseKey("sk9bebf5467e79a53a382ee56f1293c7e03b406b94f0af")
+      .addModule(CY.modules().FACE_AROUSAL_VALENCE.name, { smoothness: 0.70 })
+      .addModule(CY.modules().FACE_EMOTION.name, { smoothness: 0.40 })
+      .addModule(CY.modules().FACE_ATTENTION.name, { smoothness: 0.83 })
+      .addModule(CY.modules().FACE_DETECTOR.name, { maxInputFrameSize: 320, smoothness: 0.83 })
+      .addModule(CY.modules().ALARM_NO_FACE.name, { timeWindowMs: 10000, initialToleranceMs: 7000, threshold: 0.75 })
+      .addModule(CY.modules().DATA_AGGREGATOR.name, { initialWaitMs: 2000, periodMs: 1000 })
       .load()
       .then(({ start, stop }) => {
         morphcastInstance = { start, stop };
       });
+
+    // Event Listeners for tracking data
+    window.addEventListener(CY.modules().FACE_AROUSAL_VALENCE.eventName, (evt) => {
+      trackingData.push({
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_AROUSAL_VALENCE',
+        valence: evt.detail.output.valence,
+        arousal: evt.detail.output.arousal
+      });
+    });
+
+    window.addEventListener(CY.modules().FACE_EMOTION.eventName, (evt) => {
+      trackingData.push({
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_EMOTION',
+        dominantEmotion: evt.detail.output.dominantEmotion,
+        emotions: evt.detail.output.emotion
+      });
+    });
+
+    window.addEventListener(CY.modules().FACE_ATTENTION.eventName, (evt) => {
+      trackingData.push({
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_ATTENTION',
+        attention: evt.detail.output.attention
+      });
+    });
+
+    window.addEventListener(CY.modules().FACE_DETECTOR.eventName, (evt) => {
+      trackingData.push({
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_DETECTOR',
+        totalFaces: evt.detail.totalFaces,
+        status: evt.detail.status
+      });
+    });
+
+    watchBtn.addEventListener('click', async () => {
+      videoPlayer.style.display = 'block';
+      if (morphcastInstance) {
+        await morphcastInstance.start();
+      }
+
+      if (videoPlayer.requestFullscreen) {
+        videoPlayer.requestFullscreen();
+      }
+
+      videoPlayer.play();
+    });
+
+    videoPlayer.onended = async () => {
+      if (morphcastInstance) {
+        await morphcastInstance.stop();
+      }
+
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+
+      await generateAndUploadData();
+    };
   </script>
 </body>
 </html>
