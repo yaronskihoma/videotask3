@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Experience Tracking</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    video {
+      width: 100%;
+      max-width: 600px;
+      height: auto;
+      margin-top: 20px;
+      display: none;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      border-radius: 5px;
+      margin: 10px;
+    }
+    #buttonContainer {
+      margin: 20px 0;
+    }
+    #popup, #cameraPermissionPopup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: white;
+      border: 2px solid #4CAF50;
+      padding: 20px;
+      z-index: 1000;
+    }
+    #overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>User Experience Tracking</h1>
+
+  <div id="buttonContainer">
+    <button id="watchBtn" style="display: none;">Step 2: Watch Video</button>
+  </div>
+
+  <div id="videoContainer">
+    <video id="videoPlayer" preload="auto">
+      <source src="https://x-ad-assets.s3.amazonaws.com/media_asset/e3ff10b4f14faa07/media" type="video/mp4">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+
+  <div id="overlay"></div>
+
+  <!-- Popup for emotion tracking completed -->
+  <div id="popup">
+    <h2>User experience tracking is finished!</h2>
+    <h2>Please download & send .zip archive to finish</h2>
+    <button id="downloadReportBtn">Step 3: Download Report</button>
+  </div>
+
+  <!-- Popup for Camera Permission -->
+  <div id="cameraPermissionPopup">
+    <h2>Step 1: Allow Camera Access</h2>
+    <p>This experience requires access to your camera to track your emotions while watching the video.</p>
+    <p><a href="https://yaronskihoma.github.io/VideoTask2/privacypolicy.html" target="_blank">Read our Privacy Policy</a></p>
+    <button id="allowCameraBtn">Allow Camera</button>
+  </div>
+
+  <script src="https://sdk.morphcast.com/mphtools/v1.1/mphtools.js" data-config="cameraPrivacyPopup, compatibilityUI, compatibilityAutoCheck"></script>
+  <script src="https://ai-sdk.morphcast.com/v1.16/ai-sdk.js"></script>
+  <script src="https://sdk.morphcast.com/emotion-statistics/v1.0-beta/script.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+  
+
+  <script>
+    let trackingData = [];
+    let morphcastInstance = null;
+    const watchBtn = document.getElementById('watchBtn');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const popup = document.getElementById('popup');
+    const overlay = document.getElementById('overlay');
+    const downloadReportBtn = document.getElementById('downloadReportBtn');
+    const cameraPermissionPopup = document.getElementById('cameraPermissionPopup');
+    const allowCameraBtn = document.getElementById('allowCameraBtn');
+
+    const statsConfig = {
+      sendDatainterval: 5000,
+      tickInterval: 1000,
+      stopAfter: 7200000,
+      licenseKey: "your-license-key"
+    };
+
+    const statisticsUploader = new MorphCastStatistics.StatisticsUploader(statsConfig);
+
+    // Function to get IP and geolocation data
+  function getIpAndGeoInfo() {
+    fetch('https://ipinfo.io/json?token=6ef0f26335447e') // Replace with your token from ipinfo.io
+      .then(response => response.json())
+      .then(data => {
+        console.log("IP Data:", data);
+        // Store the fetched data
+        const userGeoData = {
+          ip: data.ip,
+          city: data.city,
+          region: data.region,
+          country: data.country,
+          location: data.loc, // Latitude and Longitude
+          postal: data.postal
+        };
+
+        // Add the IP/Geo info to tracking data
+        trackingData.push({ type: "GEO_INFO", geoData: userGeoData });
+        console.log("User GeoData added to trackingData:", trackingData);
+      })
+      .catch(error => console.error('Error fetching IP info:', error));
+  }
+
+  // Call the function to get geo info when the page loads
+  window.addEventListener('load', () => {
+    getIpAndGeoInfo();
+  });
+
+
+    // Get device and browser details
+    function getDeviceDetails() {
+      const deviceDetails = {
+        browser: navigator.userAgent,
+        platform: navigator.platform,
+        date: new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Warsaw',
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }).format(new Date())
+      };
+      return deviceDetails;
+    }
+
+    // Camera permission logic
+    function requestCameraAccess() {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(() => {
+          cameraPermissionPopup.style.display = 'none';
+          overlay.style.display = 'none';
+          watchBtn.style.display = 'inline-block';
+        })
+        .catch(() => {
+          alert('Camera access denied. You cannot proceed without allowing camera access.');
+        });
+    }
+
+    // Show camera permission popup on page load
+    window.addEventListener('load', () => {
+      overlay.style.display = 'block';
+      cameraPermissionPopup.style.display = 'block';
+    });
+
+    allowCameraBtn.addEventListener('click', () => {
+      requestCameraAccess();
+    });
+
+    CY.loader()
+      .licenseKey("sk9bebf5467e79a53a382ee56f1293c7e03b406b94f0af")
+      .addModule(CY.modules().FACE_AROUSAL_VALENCE.name, { smoothness: 0.70 })
+      .addModule(CY.modules().FACE_EMOTION.name, { smoothness: 0.40 })
+      .addModule(CY.modules().FACE_ATTENTION.name, { smoothness: 0.83 })
+      .addModule(CY.modules().FACE_DETECTOR.name, { maxInputFrameSize: 320, smoothness: 0.83 })
+      .addModule(CY.modules().ALARM_NO_FACE.name, { timeWindowMs: 10000, initialToleranceMs: 7000, threshold: 0.75 })
+      .addModule(CY.modules().DATA_AGGREGATOR.name, { initialWaitMs: 2000, periodMs: 1000 })
+      .load()
+      .then(({ start, stop }) => {
+        morphcastInstance = { start, stop };
+      });
+
+    // Step 2: Watch Video
+    watchBtn.addEventListener('click', async () => {
+      videoPlayer.style.display = 'block'; // Show the video
+      if (morphcastInstance) {
+        await morphcastInstance.start();
+        await statisticsUploader.start();
+      }
+
+      // Open video in full-screen mode
+      if (videoPlayer.requestFullscreen) {
+        videoPlayer.requestFullscreen();
+      } else if (videoPlayer.mozRequestFullScreen) {
+        videoPlayer.mozRequestFullScreen(); // Firefox
+      } else if (videoPlayer.webkitRequestFullscreen) {
+        videoPlayer.webkitRequestFullscreen(); // Chrome, Safari, and Opera
+      } else if (videoPlayer.msRequestFullscreen) {
+        videoPlayer.msRequestFullscreen(); // IE/Edge
+      }
+
+      window.onbeforeunload = function() {
+        return "Video is playing, please don't close the window.";
+      };
+      document.addEventListener("fullscreenchange", preventExit, false);
+      document.addEventListener("mozfullscreenchange", preventExit, false);
+      document.addEventListener("webkitfullscreenchange", preventExit, false);
+      document.addEventListener("msfullscreenchange", preventExit, false);
+
+      videoPlayer.play();
+
+      videoPlayer.onended = async () => {
+        if (morphcastInstance) {
+          await statisticsUploader.stop();
+          await morphcastInstance.stop();
+        }
+
+        window.onbeforeunload = null; // Allow page exit after video ends
+        removeExitPrevention();
+
+        // Exit full screen after video ends
+        exitFullscreen();
+
+        // Show the download report popup
+        overlay.style.display = 'block';
+        popup.style.display = 'block';
+      };
+    });
+
+    function exitFullscreen() {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.mozCancelFullScreen) { // Firefox
+        document.mozCancelFullScreen();
+      } else if (document.webkitExitFullscreen) { // Chrome, Safari and Opera
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) { // IE/Edge
+        document.msExitFullscreen();
+      }
+    }
+
+    function preventExit() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen(); // Re-enter fullscreen if exited
+      }
+    }
+
+    function removeExitPrevention() {
+      document.removeEventListener("fullscreenchange", preventExit);
+      document.removeEventListener("mozfullscreenchange", preventExit);
+      document.removeEventListener("webkitfullscreenchange", preventExit);
+      document.removeEventListener("msfullscreenchange", preventExit);
+    }
+
+    
+    // Collect data from all relevant MorphCast events
+
+    // FACE_AROUSAL_VALENCE
+    window.addEventListener(CY.modules().FACE_AROUSAL_VALENCE.eventName, (evt) => {
+      let frameData = {
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_AROUSAL_VALENCE',
+        valence: evt.detail.output.valence,
+        arousal: evt.detail.output.arousal
+      };
+      trackingData.push(frameData);
+      console.log(frameData);
+    });
+
+    // FACE_EMOTION
+    window.addEventListener(CY.modules().FACE_EMOTION.eventName, (evt) => {
+      let frameData = {
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_EMOTION',
+        dominantEmotion: evt.detail.output.dominantEmotion,
+        emotions: evt.detail.output.emotion
+      };
+      trackingData.push(frameData);
+      console.log(frameData);
+    });
+
+    // FACE_ATTENTION
+    window.addEventListener(CY.modules().FACE_ATTENTION.eventName, (evt) => {
+      let frameData = {
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_ATTENTION',
+        attention: evt.detail.output.attention
+      };
+      trackingData.push(frameData);
+      console.log(frameData);
+    });
+
+    // FACE_DETECTOR
+    window.addEventListener(CY.modules().FACE_DETECTOR.eventName, (evt) => {
+      let frameData = {
+        mediaTime: videoPlayer.currentTime,
+        type: 'FACE_DETECTOR',
+        totalFaces: evt.detail.totalFaces,
+        status: evt.detail.status
+      };
+      trackingData.push(frameData);
+      console.log(frameData);
+    });
+
+    // ALARM_NO_FACE
+    window.addEventListener(CY.modules().ALARM_NO_FACE.eventName, (evt) => {
+      let frameData = {
+        mediaTime: videoPlayer.currentTime,
+        type: 'ALARM_NO_FACE',
+        alarmTriggered: true
+      };
+      trackingData.push(frameData);
+      console.log(frameData);
+    });
+
+    // DATA_AGGREGATOR
+    window.addEventListener(CY.modules().DATA_AGGREGATOR.eventName, (evt) => {
+      let frameData = {
+        mediaTime: videoPlayer.currentTime,
+        type: 'DATA_AGGREGATOR',
+        aggregatedData: evt.detail.output
+      };
+      trackingData.push(frameData);
+      console.log(frameData);
+    });
+
+
+    // Convert collected data to CSV
+    function convertToCSV(data) {
+      const headers = ['mediaTime', 'type', 'attention', 'dominantEmotion', 'arousal', 'valence', 'emotions', 'totalFaces', 'status', 'alarmTriggered', 'aggregatedData'];
+      const csvRows = [headers.join(',')];
+
+      data.forEach(row => {
+        csvRows.push([
+          row.mediaTime, row.type, row.attention || '', row.dominantEmotion || '', row.arousal || '', row.valence || '',
+          JSON.stringify(row.emotions || ''), row.totalFaces || '', row.status || '', row.alarmTriggered || '', JSON.stringify(row.aggregatedData || '')
+        ].join(','));
+      });
+
+      // Append device and browser details to the end of the CSV
+      const deviceDetails = getDeviceDetails();
+      csvRows.push(`\nDevice Information:\nBrowser: ${deviceDetails.browser}`);
+      csvRows.push(`Platform: ${deviceDetails.platform}`);
+      csvRows.push(`Date (Warsaw Time): ${deviceDetails.date}`);
+      
+      return csvRows.join('\n');
+    }
+
+    function downloadCSV() {
+      const csvData = convertToCSV(trackingData);
+      const blob = new Blob([csvData], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `report_${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
+
+    function downloadJSON() {
+      const deviceDetails = getDeviceDetails();
+      const jsonData = JSON.stringify({ trackingData, deviceDetails }, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `report_${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+    }
+    
+  //downloadReportAsZip function that will bundle both the .csv and .json files into a ZIP
+  function downloadReportAsZip() {
+  // Create a new instance of JSZip
+  let zip = new JSZip();
+
+  // Convert tracking data to JSON and CSV
+  const deviceDetails = getDeviceDetails();
+  let jsonData = JSON.stringify({ trackingData, deviceDetails }, null, 2);
+  let csvData = convertToCSV(trackingData);
+
+  // Add the JSON and CSV files to the ZIP
+  zip.file(`report_${Date.now()}_t2.json`, jsonData);
+  zip.file(`report_${Date.now()}_t2.csv`, csvData);
+
+  // Generate the ZIP file and trigger the download
+  zip.generateAsync({ type: "blob" })
+    .then(function(content) {
+      // Create a download link for the ZIP file
+      let link = document.createElement("a");
+      link.href = URL.createObjectURL(content);
+      link.download = `report_${Date.now()}_t2.zip`; // Add suffix _t1 to the zip file name
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+}
+
+
+  // Download ZIP on report download
+  downloadReportBtn.addEventListener('click', () => {
+  downloadReportAsZip();
+  });
+
+  </script>
+
+</body>
+</html>
