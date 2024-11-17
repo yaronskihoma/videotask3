@@ -75,7 +75,7 @@
   <div id="popup">
     <h2>User experience tracking is finished!</h2>
     <h2>Please download & send .zip archive to finish</h2>
-    <button id="downloadReportBtn">Step 3: Download Report</button>
+    <button id="downloadReportBtn">Step 3: Send Report</button>
   </div>
 
   <!-- Popup for Camera Permission -->
@@ -476,8 +476,8 @@
         });
     }
 
+// Modified handler
 downloadReportBtn.addEventListener('click', async () => {
-  // Create and show loading overlay
   const overlay = document.createElement('div');
   overlay.style.cssText = `
     position: fixed;
@@ -499,68 +499,96 @@ downloadReportBtn.addEventListener('click', async () => {
     border-radius: 5px;
     text-align: center;
   `;
-  message.textContent = 'Downloading report and sending data...';
+  message.textContent = 'Preparing and uploading report...';
   
   overlay.appendChild(message);
   document.body.appendChild(overlay);
 
   try {
-    console.log('Starting data upload process...');
-    console.log('Checking config:', window.config);
-    console.log('Google Script URL:', window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL);
+    // Prepare data
+    const deviceDetails = getDeviceDetails();
+    const geoData = trackingData.find(item => item.type === "GEO_INFO")?.geoData || {};
     
-    // First download the ZIP file
-    downloadReportAsZip();
+    // Prepare CSV and JSON data
+    const csvData = convertToCSV(trackingData);
+    const jsonData = { trackingData, deviceDetails };
     
-    // Then try to send to Google Sheets
-    message.textContent = 'Report downloaded. Sending data to server...';
+    // Prepare emotion summary
+    const emotionData = trackingData.filter(item => item.type === 'FACE_EMOTION');
+    const emotionCounts = emotionData.reduce((acc, curr) => {
+      acc[curr.dominantEmotion] = (acc[curr.dominantEmotion] || 0) + 1;
+      return acc;
+    }, {});
+
+    // Calculate average attention
+    const attentionData = trackingData.filter(item => item.type === 'FACE_ATTENTION');
+    const avgAttention = attentionData.length > 0 
+      ? attentionData.reduce((sum, curr) => sum + (curr.attention || 0), 0) / attentionData.length 
+      : 0;
+
+    const payload = {
+      deviceInfo: {
+        browser: deviceDetails.browser,
+        platform: deviceDetails.platform,
+        date: deviceDetails.date
+      },
+      location: {
+        country: geoData.country || 'N/A',
+        city: geoData.city || 'N/A'
+      },
+      metrics: {
+        emotionSummary: emotionCounts,
+        averageAttention: avgAttention,
+        totalFrames: trackingData.length
+      },
+      files: {
+        csv: csvData,
+        json: jsonData
+      }
+    };
+
+    message.textContent = 'Uploading data...';
     
     const response = await fetch(window.config.GOOGLE_SCRIPT_DEPLOYMENT_URL, {
       method: 'POST',
-      mode: 'no-cors',
+      mode: 'cors',
       headers: {
-        'Content-Type': 'text/plain',
+        'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        timestamp: new Date().toISOString(),
-        deviceInfo: getDeviceDetails(),
-        location: trackingData.find(item => item.type === "GEO_INFO")?.geoData || {},
-        metrics: {
-          emotionSummary: trackingData
-            .filter(item => item.type === 'FACE_EMOTION')
-            .reduce((acc, curr) => {
-              acc[curr.dominantEmotion] = (acc[curr.dominantEmotion] || 0) + 1;
-              return acc;
-            }, {}),
-          averageAttention: trackingData
-            .filter(item => item.type === 'FACE_ATTENTION')
-            .reduce((sum, curr) => sum + (curr.attention || 0), 0) / 
-            trackingData.filter(item => item.type === 'FACE_ATTENTION').length || 0,
-          totalFrames: trackingData.length
-        },
-        rawData: JSON.stringify(trackingData.slice(0, 1000))
-      })
+      body: JSON.stringify(payload)
     });
 
-    console.log('Server response:', response);
-    
-    message.textContent = 'Report downloaded and data sent successfully!';
-    
-    // Auto-hide overlay after 3 seconds
-    setTimeout(() => {
-      if (document.body.contains(overlay)) {
-        document.body.removeChild(overlay);
-      }
-    }, 3000);
-    
+    const result = await response.json();
+    console.log('Server response:', result);
+
+    if (result.status === 'success') {
+      message.innerHTML = `
+        Report uploaded successfully!<br>
+        <a href="${result.folderUrl}" target="_blank" style="color: #4CAF50; margin-top: 10px; display: inline-block;">
+          View in Google Drive
+        </a>
+      `;
+      
+      // Disable the button after successful upload
+      downloadReportBtn.disabled = true;
+      downloadReportBtn.style.opacity = '0.5';
+      downloadReportBtn.textContent = 'Report Sent ✓';
+    } else {
+      throw new Error(result.message);
+    }
+
   } catch (error) {
-    console.error('Detailed error:', error);
-    message.textContent = 'Error occurred. Report downloaded locally.';
+    console.error('Error during upload:', error);
+    message.textContent = 'Error uploading report. Please try again.';
+  }
+
+  // Auto-hide overlay after 5 seconds on success
+  if (message.textContent.includes('successfully')) {
     setTimeout(() => {
       if (document.body.contains(overlay)) {
         document.body.removeChild(overlay);
       }
-    }, 3000);
+    }, 5000);
   }
 });
     
