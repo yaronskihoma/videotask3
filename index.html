@@ -17,6 +17,29 @@
       height: auto;
       margin-top: 20px;
       display: none;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+    }
+    video::-webkit-media-controls {
+      display: none !important;
+    }
+    video::-webkit-media-controls-enclosure {
+      display: none !important;
+    }
+    video::-webkit-media-controls-panel {
+      display: none !important;
+    }
+    video::-webkit-media-controls-overlay-play-button {
+      display: none !important;
+    }
+    video::-webkit-media-controls-play-button {
+      display: none !important;
+    }
+    video::-webkit-media-controls-timeline {
+      display: none !important;
     }
     button {
       padding: 10px 20px;
@@ -112,8 +135,7 @@
     <button class="copy-button" onclick="copyToClipboard()">Copy Code</button>
     <p class="instruction">Please copy this code and paste it in your Amazon MTurk task to complete the HIT.</p>
   </div>
-
-  <!-- Scripts -->
+<!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://sdk.morphcast.com/mphtools/v1.1/mphtools.js" data-config="cameraPrivacyPopup, compatibilityUI, compatibilityAutoCheck"></script>
   <script src="https://ai-sdk.morphcast.com/v1.16/ai-sdk.js"></script>
@@ -122,30 +144,11 @@
   <script type="module">
     import config from './config.js';
     
-    // Initialize Supabase Client using config
     const { createClient } = supabase;
     const supabaseClient = createClient(
       config.SUPABASE_URL,
       config.SUPABASE_KEY
     );
-
-    // Helper function for retrying uploads
-    async function uploadWithRetry(data, filename, maxRetries = 3) {
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          return await uploadToSupabase(data, filename);
-        } catch (error) {
-          if (i === maxRetries - 1) throw error;
-          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-        }
-      }
-    }
-
-    // Get MTurk worker ID from URL parameters
-    function getMTurkWorkerId() {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get('workerId') || 'unknown_worker';
-    }
 
     let trackingData = [];
     let morphcastInstance = null;
@@ -155,6 +158,52 @@
     const cameraPermissionPopup = document.getElementById('cameraPermissionPopup');
     const allowCameraBtn = document.getElementById('allowCameraBtn');
     const completionCodePopup = document.getElementById('completionCodePopup');
+
+    // Disable video controls
+    videoPlayer.controls = false;
+
+    // Prevent seeking function
+    function preventSeeking(event) {
+      if (event.target.seeking) {
+        event.target.currentTime = event.target.savedTime || 0;
+      }
+    }
+
+    // Handle fullscreen changes
+    function handleFullscreenChange() {
+      if (!document.fullscreenElement && 
+          !document.webkitFullscreenElement && 
+          !document.mozFullScreenElement && 
+          !document.msFullscreenElement) {
+        // If video is still playing, force back to fullscreen
+        if (!videoPlayer.paused && !videoPlayer.ended) {
+          if (videoPlayer.requestFullscreen) {
+            videoPlayer.requestFullscreen();
+          } else if (videoPlayer.webkitRequestFullscreen) {
+            videoPlayer.webkitRequestFullscreen();
+          } else if (videoPlayer.msRequestFullscreen) {
+            videoPlayer.msRequestFullscreen();
+          }
+        }
+      }
+    }
+
+    // Save current time periodically
+    setInterval(() => {
+      if (!videoPlayer.seeking) {
+        videoPlayer.savedTime = videoPlayer.currentTime;
+      }
+    }, 250);
+
+    // Prevent keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || 
+          e.code === 'ArrowLeft' || 
+          e.code === 'ArrowRight' || 
+          e.code === 'Escape') {
+        e.preventDefault();
+      }
+    });
 
     window.copyToClipboard = function() {
       const codeElement = document.getElementById('completionCode');
@@ -173,6 +222,22 @@
       codeElement.textContent = config.COMPLETION_CODE;
       overlay.style.display = 'block';
       completionCodePopup.style.display = 'block';
+    }
+
+    async function uploadWithRetry(data, filename, maxRetries = 3) {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await uploadToSupabase(data, filename);
+        } catch (error) {
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
+    }
+
+    function getMTurkWorkerId() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('workerId') || 'unknown_worker';
     }
 
     window.addEventListener('load', () => {
@@ -247,7 +312,6 @@
         const sessionId = Date.now();
         const workerId = getMTurkWorkerId();
         
-        // Include taskId in metadata
         const metadata = {
           sessionId: sessionId,
           workerId: workerId,
@@ -258,32 +322,17 @@
         const jsonBlob = new Blob([JSON.stringify(trackingData)], { type: 'application/json' });
         const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
 
-        // Modified filenames to include task ID
         await Promise.all([
-          uploadWithRetry(
-            jsonBlob, 
-            `${config.TASK_ID}_${workerId}_data_${sessionId}.json`
-          ),
-          uploadWithRetry(
-            metadataBlob, 
-            `${config.TASK_ID}_${workerId}_metadata_${sessionId}.json`
-          )
+          uploadWithRetry(jsonBlob, `${config.TASK_ID}_${workerId}_data_${sessionId}.json`),
+          uploadWithRetry(metadataBlob, `${config.TASK_ID}_${workerId}_metadata_${sessionId}.json`)
         ]);
 
-        // Remove loading overlay
         document.body.removeChild(loadingOverlay);
-        
-        // Show completion code popup
         showCompletionCode();
 
       } catch (error) {
         console.error('Upload error:', error);
-        message.innerHTML = `
-          Error uploading data.<br>
-          Please try again or contact the researcher.<br>
-          Error details: ${error.message}
-        `;
-        
+        message.textContent = 'Error uploading data. Please try again or contact the researcher.';
         setTimeout(() => {
           if (document.body.contains(loadingOverlay)) {
             document.body.removeChild(loadingOverlay);
@@ -347,20 +396,46 @@
         await morphcastInstance.start();
       }
 
+      // Add seeking prevention
+      videoPlayer.addEventListener('seeking', preventSeeking);
+      
+      // Add fullscreen handling
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.addEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.addEventListener("MSFullscreenChange", handleFullscreenChange);
+
+      // Force fullscreen
       if (videoPlayer.requestFullscreen) {
         videoPlayer.requestFullscreen();
+      } else if (videoPlayer.webkitRequestFullscreen) {
+        videoPlayer.webkitRequestFullscreen();
+      } else if (videoPlayer.msRequestFullscreen) {
+        videoPlayer.msRequestFullscreen();
       }
 
       videoPlayer.play();
     });
 
     videoPlayer.onended = async () => {
+      // Remove event listeners
+      videoPlayer.removeEventListener('seeking', preventSeeking);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("mozfullscreenchange", handleFullscreenChange);
+      document.removeEventListener("MSFullscreenChange", handleFullscreenChange);
+
       if (morphcastInstance) {
         await morphcastInstance.stop();
       }
 
+      // Exit fullscreen
       if (document.exitFullscreen) {
         document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      } else if (document.msExitFullscreen) {
+        document.msExitFullscreen();
       }
 
       await generateAndUploadData();
