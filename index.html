@@ -363,7 +363,8 @@
     }
 
     async function sendToGoogleSheets(data) {
-      const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUjhl7LCTSURbYbsVkIjRvbSgueMj_hV9gXaf67Vn5z0ZdGzzehcmqUOnCBUPRZtR3/exec'; // Replace with your Google Script URL
+      // Import config
+      const GOOGLE_SCRIPT_URL = config.GOOGLE_SCRIPT_DEPLOYMENT_URL;
       
       try {
         const deviceDetails = getDeviceDetails();
@@ -393,22 +394,27 @@
           },
           metrics: {
             emotionSummary: emotionCounts,
-            averageAttention: avgAttention,
+            averageAttention: avgAttention || 0,
             totalFrames: data.length
           },
-          rawData: JSON.stringify(data)
+          rawData: JSON.stringify(data.slice(0, 1000)) // Limiting data size
         };
+
+        console.log('Sending data to Google Sheets:', payload);
 
         const response = await fetch(GOOGLE_SCRIPT_URL, {
           method: 'POST',
-          mode: 'no-cors',
+          mode: 'cors',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify(payload)
         });
 
-        return true;
+        const result = await response.json();
+        console.log('Google Sheets response:', result);
+
+        return result.status === 'success';
       } catch (error) {
         console.error('Error sending to Google Sheets:', error);
         return false;
