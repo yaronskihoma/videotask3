@@ -419,19 +419,8 @@
 
   // Download ZIP on report download
   downloadReportBtn.addEventListener('click', () => {
-    // Send the data to the Flask server
-    fetch('/upload', {
-        method: 'POST',
-        body: new FormData().append('file', new Blob([convertToCSV(trackingData)], { type: 'text/csv' }))
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log(data);
-        // Optionally, provide feedback to the user
-        alert('Report submitted successfully!'); 
-    })
-    .catch(error => console.error('Error uploading report:', error));
-});
+  downloadReportAsZip();
+  });
 
   </script>
 
