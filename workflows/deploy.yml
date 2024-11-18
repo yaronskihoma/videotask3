@@ -1,25 +1,25 @@
-# .github/workflows/deploy.yml
 name: Deploy
-
 on:
   push:
     branches: [ main ]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      
-      - name: Replace environment variables
-        run: |
-          sed -i 's/__SUPABASE_URL__/${{ secrets.SUPABASE_URL }}/g' config.js
-          sed -i 's/__SUPABASE_KEY__/${{ secrets.SUPABASE_KEY }}/g' config.js
-          sed -i 's/__MORPHCAST_LICENSE__/${{ secrets.MORPHCAST_LICENSE }}/g' config.js
-          sed -i 's/__COMPLETION_CODE__/${{ secrets.COMPLETION_CODE }}/g' config.js
-          sed -i 's/__TASK_ID__/${{ secrets.TASK_ID }}/g' config.js
 
-      - name: Deploy to GitHub Pages
+      - name: Create config file
+        run: |
+          echo "const config = {
+            SUPABASE_URL: '${{ secrets.SUPABASE_URL }}',
+            SUPABASE_KEY: '${{ secrets.SUPABASE_KEY }}',
+            MORPHCAST_LICENSE: '${{ secrets.MORPHCAST_LICENSE }}',
+            COMPLETION_CODE: '${{ secrets.COMPLETION_CODE }}',
+            TASK_ID: '${{ secrets.TASK_ID }}'
+          }; export default config;" > config.js
+
+      - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
