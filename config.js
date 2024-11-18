@@ -1,13 +1,15 @@
-// config.example.js
+import dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config();
+
 const config = {
-    SUPABASE_URL: 'https://szshayacurojnsbdcwkc.supabase.co',
-    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6c2hheWFjdXJvam5zYmRjd2tjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMTg2MTU0MywiZXhwIjoyMDQ3NDM3NTQzfQ.GQIgU6vFz0ZcIgxmuNxAXQnpoaqh3YKdCdHQMFTJvUg',
-    MORPHCAST_LICENSE: 'sk9bebf5467e79a53a382ee56f1293c7e03b406b94f0af',
-    IPINFO_TOKEN: '6ef0f26335447e',
-    COMPLETION_CODE: 'TASK-3_9743192AGH', // Add this
-    TASK_ID: 'TASK-3'  // Add this
-
-
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_KEY: process.env.SUPABASE_KEY,
+    MORPHCAST_LICENSE: process.env.MORPHCAST_LICENSE,
+    IPINFO_TOKEN: process.env.IPINFO_TOKEN,
+    COMPLETION_CODE: process.env.COMPLETION_CODE,
+    TASK_ID: process.env.TASK_ID,
 };
 
 export default config;
