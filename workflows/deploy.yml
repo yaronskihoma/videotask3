@@ -1,26 +1,27 @@
-name: Deploy
+name: Deploy to GitHub Pages
+
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main  # Or your main branch name
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Create config file
-        run: |
-          echo "const config = {
-            SUPABASE_URL: '${{ secrets.SUPABASE_URL }}',
-            SUPABASE_KEY: '${{ secrets.SUPABASE_KEY }}',
-            MORPHCAST_LICENSE: '${{ secrets.MORPHCAST_LICENSE }}',
-            COMPLETION_CODE: '${{ secrets.COMPLETION_CODE }}',
-            TASK_ID: '${{ secrets.TASK_ID }}'
-          }; export default config;" > config.js
+      # ... any build steps you might have ...
 
-      - name: Deploy
-        uses: peaceiris/actions-gh-pages@v3
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
+          build_dir: ./dist  # Or your build output directory
+          environment: production  # Or your desired environment
+        env:
+          # Access secrets here
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          MORPHCAST_LICENSE: ${{ secrets.MORPHCAST_LICENSE }}
+          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
