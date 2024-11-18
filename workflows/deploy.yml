@@ -1,27 +1,2 @@
-name: Deploy to GitHub Pages
-
-on:
-  push:
-    branches:
-      - main  # Or your main branch name
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-
-      # ... any build steps you might have ...
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v1
-        with:
-          build_dir: ./dist  # Or your build output directory
-          environment: production  # Or your desired environment
-        env:
-          # Access secrets here
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          MORPHCAST_LICENSE: ${{ secrets.MORPHCAST_LICENSE }}
-          IPINFO_TOKEN: ${{ secrets.IPINFO_TOKEN }}
+- name: Install dependencies
+  run: npm install express
