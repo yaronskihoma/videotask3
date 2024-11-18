@@ -119,7 +119,6 @@
 
   <div id="overlay"></div>
 
-  <!-- Popup for Camera Permission -->
   <div id="cameraPermissionPopup">
     <h2>Step 1: Allow Camera Access</h2>
     <p>This experience requires access to your camera to track your emotions while watching the video.</p>
@@ -127,29 +126,21 @@
     <button id="allowCameraBtn">Allow Camera</button>
   </div>
 
-  <!-- Completion Code Popup -->
   <div id="completionCodePopup">
     <h2>Thank you for participating!</h2>
     <p>Your completion code is:</p>
     <div id="completionCode"></div>
     <button class="copy-button" onclick="copyToClipboard()">Copy Code</button>
-    <p class="instruction">Please copy this code and paste it in your Amazon MTurk task to complete the HIT.</p>
+    <p class="instruction">Please copy
+      this code and paste it in your Amazon MTurk task to complete the HIT.</p>
   </div>
-<!-- Scripts -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://sdk.morphcast.com/mphtools/v1.1/mphtools.js" data-config="cameraPrivacyPopup, compatibilityUI, compatibilityAutoCheck"></script>
   <script src="https://ai-sdk.morphcast.com/v1.16/ai-sdk.js"></script>
   <script src="https://sdk.morphcast.com/emotion-statistics/v1.0-beta/script.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-  <script type="module">
-    import config from './config.js';
-    
-    const { createClient } = supabase;
-    const supabaseClient = createClient(
-      config.SUPABASE_URL,
-      config.SUPABASE_KEY
-    );
 
+  <script>
     let trackingData = [];
     let morphcastInstance = null;
     const watchBtn = document.getElementById('watchBtn');
@@ -158,25 +149,25 @@
     const cameraPermissionPopup = document.getElementById('cameraPermissionPopup');
     const allowCameraBtn = document.getElementById('allowCameraBtn');
     const completionCodePopup = document.getElementById('completionCodePopup');
-
     // Disable video controls
     videoPlayer.controls = false;
-
     // Prevent seeking function
     function preventSeeking(event) {
       if (event.target.seeking) {
-        event.target.currentTime = event.target.savedTime || 0;
+        event.target.currentTime = event.target.savedTime ||
+          0;
       }
     }
 
     // Handle fullscreen changes
     function handleFullscreenChange() {
-      if (!document.fullscreenElement && 
-          !document.webkitFullscreenElement && 
-          !document.mozFullScreenElement && 
-          !document.msFullscreenElement) {
+      if (!document.fullscreenElement &&
+        !document.webkitFullscreenElement &&
+        !document.mozFullScreenElement &&
+        !document.msFullscreenElement) {
         // If video is still playing, force back to fullscreen
         if (!videoPlayer.paused && !videoPlayer.ended) {
+
           if (videoPlayer.requestFullscreen) {
             videoPlayer.requestFullscreen();
           } else if (videoPlayer.webkitRequestFullscreen) {
@@ -194,8 +185,7 @@
         videoPlayer.savedTime = videoPlayer.currentTime;
       }
     }, 250);
-
-    // Prevent keyboard shortcuts
+// Prevent keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       if (e.code === 'Space' || 
           e.code === 'ArrowLeft' || 
@@ -204,7 +194,6 @@
         e.preventDefault();
       }
     });
-
     window.copyToClipboard = function() {
       const codeElement = document.getElementById('completionCode');
       const text = codeElement.textContent;
@@ -244,7 +233,6 @@
       overlay.style.display = 'block';
       cameraPermissionPopup.style.display = 'block';
     });
-
     function requestCameraAccess() {
       navigator.mediaDevices.getUserMedia({ video: true })
         .then(() => {
@@ -254,6 +242,7 @@
         })
         .catch(() => {
           alert('Camera access denied. You cannot proceed without allowing camera access.');
+      
         });
     }
 
@@ -272,7 +261,6 @@
             contentType: data instanceof Blob ? data.type : 'application/json',
             upsert: true
           });
-
         if (error) throw error;
         return uploadData;
       } catch (error) {
@@ -318,15 +306,12 @@
           taskId: config.TASK_ID,
           totalFrames: trackingData.length
         };
-
         const jsonBlob = new Blob([JSON.stringify(trackingData)], { type: 'application/json' });
         const metadataBlob = new Blob([JSON.stringify(metadata)], { type: 'application/json' });
-
         await Promise.all([
           uploadWithRetry(jsonBlob, `${config.TASK_ID}_${workerId}_data_${sessionId}.json`),
           uploadWithRetry(metadataBlob, `${config.TASK_ID}_${workerId}_metadata_${sessionId}.json`)
         ]);
-
         document.body.removeChild(loadingOverlay);
         showCompletionCode();
 
@@ -341,19 +326,6 @@
       }
     }
 
-    CY.loader()
-      .licenseKey(config.MORPHCAST_LICENSE)
-      .addModule(CY.modules().FACE_AROUSAL_VALENCE.name, { smoothness: 0.70 })
-      .addModule(CY.modules().FACE_EMOTION.name, { smoothness: 0.40 })
-      .addModule(CY.modules().FACE_ATTENTION.name, { smoothness: 0.83 })
-      .addModule(CY.modules().FACE_DETECTOR.name, { maxInputFrameSize: 320, smoothness: 0.83 })
-      .addModule(CY.modules().ALARM_NO_FACE.name, { timeWindowMs: 10000, initialToleranceMs: 7000, threshold: 0.75 })
-      .addModule(CY.modules().DATA_AGGREGATOR.name, { initialWaitMs: 2000, periodMs: 1000 })
-      .load()
-      .then(({ start, stop }) => {
-        morphcastInstance = { start, stop };
-      });
-
     // Event Listeners for tracking data
     window.addEventListener(CY.modules().FACE_AROUSAL_VALENCE.eventName, (evt) => {
       trackingData.push({
@@ -363,7 +335,6 @@
         arousal: evt.detail.output.arousal
       });
     });
-
     window.addEventListener(CY.modules().FACE_EMOTION.eventName, (evt) => {
       trackingData.push({
         mediaTime: videoPlayer.currentTime,
@@ -372,7 +343,6 @@
         emotions: evt.detail.output.emotion
       });
     });
-
     window.addEventListener(CY.modules().FACE_ATTENTION.eventName, (evt) => {
       trackingData.push({
         mediaTime: videoPlayer.currentTime,
@@ -380,7 +350,6 @@
         attention: evt.detail.output.attention
       });
     });
-
     window.addEventListener(CY.modules().FACE_DETECTOR.eventName, (evt) => {
       trackingData.push({
         mediaTime: videoPlayer.currentTime,
@@ -389,7 +358,6 @@
         status: evt.detail.status
       });
     });
-
     watchBtn.addEventListener('click', async () => {
       videoPlayer.style.display = 'block';
       if (morphcastInstance) {
