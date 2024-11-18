@@ -1,13 +1,10 @@
-// config.example.js
+// config.example.js (for documentation)
 const config = {
-    SUPABASE_URL: 'https://szshayacurojnsbdcwkc.supabase.co',
-    SUPABASE_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6c2hheWFjdXJvam5zYmRjd2tjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMTg2MTU0MywiZXhwIjoyMDQ3NDM3NTQzfQ.GQIgU6vFz0ZcIgxmuNxAXQnpoaqh3YKdCdHQMFTJvUg',
-    MORPHCAST_LICENSE: 'sk9bebf5467e79a53a382ee56f1293c7e03b406b94f0af',
-    IPINFO_TOKEN: '6ef0f26335447e',
-    COMPLETION_CODE: 'TASK-3_9743192AGH', // Add this
-    TASK_ID: 'TASK-3'  // Add this
-
-
+    SUPABASE_URL: 'your-supabase-url',
+    SUPABASE_KEY: 'your-supabase-key',
+    MORPHCAST_LICENSE: 'your-morphcast-license',
+    COMPLETION_CODE: 'your-completion-code',
+    TASK_ID: 'TASK-3'
 };
 
 export default config;
