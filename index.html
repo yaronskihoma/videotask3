@@ -134,6 +134,14 @@
     <p class="instruction">Please copy
       this code and paste it in your Amazon MTurk task to complete the HIT.</p>
   </div>
+  <script>  const config = {
+  SUPABASE_URL: 'your_supabase_url',
+  SUPABASE_KEY: 'your_supabase_key',
+  MORPHCAST_LICENSE: 'your_morphcast_license',
+  IPINFO_TOKEN: 'your_ipinfo_token',
+  COMPLETION_CODE: 'your_completion_code',
+  TASK_ID: 'your_task_id'
+}; </script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://sdk.morphcast.com/mphtools/v1.1/mphtools.js" data-config="cameraPrivacyPopup, compatibilityUI, compatibilityAutoCheck"></script>
   <script src="https://ai-sdk.morphcast.com/v1.16/ai-sdk.js"></script>
@@ -141,14 +149,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 
   <script>
-    const config = {
-  SUPABASE_URL: 'your_supabase_url',
-  SUPABASE_KEY: 'your_supabase_key',
-  MORPHCAST_LICENSE: 'your_morphcast_license',
-  IPINFO_TOKEN: 'your_ipinfo_token',
-  COMPLETION_CODE: 'your_completion_code',
-  TASK_ID: 'your_task_id'
-};
     let trackingData = [];
     let morphcastInstance = null;
     const watchBtn = document.getElementById('watchBtn');
