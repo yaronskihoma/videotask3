@@ -141,31 +141,14 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 
   <script>
-    // Call the fetchConfig function when the page loads
-        window.addEventListener('load', fetchConfig);
-
-        async function fetchConfig() {
-            try {
-                const response = await fetch('/api/config');
-                const config = await response.json();
-
-                // Log the entire config object
-                console.log('Fetched config:', config);
-
-                // Log individual keys
-                console.log('SUPABASE_URL:', config.SUPABASE_URL);
-                console.log('SUPABASE_KEY:', config.SUPABASE_KEY);
-                console.log('MORPHCAST_LICENSE:', config.MORPHCAST_LICENSE);
-                console.log('IPINFO_TOKEN:', config.IPINFO_TOKEN);
-                console.log('COMPLETION_CODE:', config.COMPLETION_CODE);
-                console.log('TASK_ID:', config.TASK_ID);
-
-                // ... rest of your code ...
-            } catch (error) {
-                console.error('Error fetching configuration:', error);
-            }
-        }
-    // Call the fetchConfig function when the page loads
+    const config = {
+  SUPABASE_URL: 'your_supabase_url',
+  SUPABASE_KEY: 'your_supabase_key',
+  MORPHCAST_LICENSE: 'your_morphcast_license',
+  IPINFO_TOKEN: 'your_ipinfo_token',
+  COMPLETION_CODE: 'your_completion_code',
+  TASK_ID: 'your_task_id'
+};
     let trackingData = [];
     let morphcastInstance = null;
     const watchBtn = document.getElementById('watchBtn');
